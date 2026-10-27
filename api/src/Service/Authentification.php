@@ -15,7 +15,7 @@ use Gesdinet\JWTRefreshTokenBundle\Generator\RefreshTokenGeneratorInterface;
 use Gesdinet\JWTRefreshTokenBundle\Model\RefreshTokenManagerInterface;
 use Lexik\Bundle\JWTAuthenticationBundle\Services\JWTTokenManagerInterface;
 use Psr\Clock\ClockInterface;
-use Symfony\Component\RateLimiter\RateLimiterFactory;
+use Symfony\Component\RateLimiter\RateLimiterFactoryInterface;
 
 /**
  * Section 7 : inscription et connexion par OTP (R-71, R-160), sans mot de passe.
@@ -35,8 +35,8 @@ final class Authentification
         private readonly JWTTokenManagerInterface $jwt,
         private readonly RefreshTokenGeneratorInterface $refreshGenerateur,
         private readonly RefreshTokenManagerInterface $refreshManager,
-        private readonly RateLimiterFactory $otpParTelephoneLimiter,
-        private readonly RateLimiterFactory $otpParIpLimiter,
+        private readonly RateLimiterFactoryInterface $otpParTelephoneLimiter,
+        private readonly RateLimiterFactoryInterface $otpParIpLimiter,
     ) {
     }
 

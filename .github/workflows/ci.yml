@@ -1,0 +1,112 @@
+# R-154 : tests automatiques à chaque modification, bloquants avant fusion.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  api:
+    name: API Symfony (PHPUnit + concurrence)
+    runs-on: ubuntu-24.04
+    services:
+      mariadb:
+        image: mariadb:10.11
+        env:
+          MARIADB_ROOT_PASSWORD: root
+          MARIADB_USER: cdl
+          MARIADB_PASSWORD: cdl
+          MARIADB_DATABASE: cdl
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    defaults:
+      run:
+        working-directory: api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: intl, pdo_mysql, sodium, mbstring
+          coverage: none
+      - name: Droits de l'utilisateur de test
+        run: mysql -h127.0.0.1 -uroot -proot -e "GRANT ALL ON *.* TO 'cdl'@'%'; FLUSH PRIVILEGES;"
+      - run: composer install --no-interaction --no-progress
+      - run: php bin/console lint:container && php bin/console lint:yaml config && php bin/console lint:twig templates
+      - run: php bin/console doctrine:schema:validate --skip-sync
+      - run: php vendor/bin/phpunit
+      - name: Migrations sur une base vide (dev) + concurrence
+        run: |
+          php bin/console lexik:jwt:generate-keypair --skip-if-exists
+          php bin/console doctrine:migrations:migrate -n
+          php bin/console doctrine:schema:validate
+          php bin/console app:referentiels:charger
+          ./tests/Concurrence/encaissements-paralleles.sh
+
+  mobile:
+    name: App Flutter (analyse, tests, APK)
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.8'
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - name: Code généré à jour
+        run: |
+          dart run build_runner build --delete-conflicting-outputs
+          flutter gen-l10n
+          git diff --exit-code -- lib
+      - run: flutter analyze
+      - run: flutter test
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - run: flutter build apk --debug --dart-define=CDL_ENV=staging
+
+  integration:
+    name: Contrat app ↔ API (bout en bout)
+    runs-on: ubuntu-24.04
+    needs: [api, mobile]
+    services:
+      mariadb:
+        image: mariadb:10.11
+        env:
+          MARIADB_ROOT_PASSWORD: root
+          MARIADB_USER: cdl
+          MARIADB_PASSWORD: cdl
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: intl, pdo_mysql, sodium, mbstring
+          coverage: none
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.8'
+          channel: stable
+          cache: true
+      - run: mysql -h127.0.0.1 -uroot -proot -e "GRANT ALL ON *.* TO 'cdl'@'%'; FLUSH PRIVILEGES;"
+      - run: composer install --no-interaction --no-progress
+        working-directory: api
+      - run: flutter pub get
+        working-directory: mobile
+      - run: ./scripts/test-integration.sh
