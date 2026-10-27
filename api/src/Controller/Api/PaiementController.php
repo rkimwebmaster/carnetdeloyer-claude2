@@ -13,6 +13,7 @@ use App\Enum\StatutDeclaration;
 use App\Enum\TypePaiement;
 use App\Securite\Acces;
 use App\Service\Declarations;
+use App\Service\Echeancier;
 use App\Service\Espaces;
 use App\Service\Imputations;
 use App\Service\Paiements;
@@ -34,6 +35,7 @@ final class PaiementController extends ApiController
         private readonly Imputations $imputations,
         private readonly Declarations $declarations,
         private readonly Espaces $espaces,
+        private readonly Echeancier $echeancier,
     ) {
     }
 
@@ -93,7 +95,10 @@ final class PaiementController extends ApiController
         foreach ($dto->imputations as $ligne) {
             $repartition[$ligne['echeanceId']] = ($repartition[$ligne['echeanceId']] ?? 0) + $ligne['montant'];
         }
-        $this->em->wrapInTransaction(fn () => $this->imputations->imputerManuellement($paiement, $repartition));
+        $this->em->wrapInTransaction(function () use ($paiement, $repartition): void {
+            $this->echeancier->verrouiller($paiement->getContrat());
+            $this->imputations->imputerManuellement($paiement, $repartition);
+        });
 
         return $this->json($this->p->paiement($paiement));
     }

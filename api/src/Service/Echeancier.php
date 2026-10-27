@@ -4,6 +4,7 @@ namespace App\Service;
 
 use App\Entity\Contrat;
 use App\Entity\Echeance;
+use Doctrine\DBAL\LockMode;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Clock\ClockInterface;
 
@@ -50,6 +51,23 @@ final class Echeancier
         }
 
         return $crees;
+    }
+
+    /**
+     * Verrouille le contrat pour la transaction en cours et recharge ses échéances.
+     * Toute écriture sur les échéances d'un contrat (paiement, annulation, clôture,
+     * réimputation) passe par ce verrou : deux saisies simultanées ne peuvent pas
+     * écraser le montant payé l'une de l'autre. Ordre des verrous : contrat, puis espace (reçu).
+     */
+    public function verrouiller(Contrat $contrat): void
+    {
+        if (!$this->em->getConnection()->isTransactionActive()) {
+            throw new \LogicException('Le verrou d\'un contrat exige une transaction.');
+        }
+        $this->em->lock($contrat, LockMode::PESSIMISTIC_WRITE);
+        foreach ($this->echeances($contrat) as $echeance) {
+            $this->em->refresh($echeance);
+        }
     }
 
     /**

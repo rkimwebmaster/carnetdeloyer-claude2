@@ -50,6 +50,20 @@ final class Recus
         return rtrim($this->urlPublique, '/').'/r/'.$recu->getJeton();
     }
 
+    public function messagePartage(Recu $recu, string $lien): string
+    {
+        $contrat = $recu->getPaiement()->getContrat();
+        $devise = $contrat->getDevise();
+        $montant = number_format($recu->getPaiement()->getMontant() / 10 ** $devise->getDecimales(), $devise->getDecimales(), ',', ' ');
+
+        return \sprintf(
+            "Bonjour %s,\nVotre reçu %s de %s %s (%s) est disponible : %s\n%s\nConfidentialité : %s",
+            $contrat->getLocataire()->getNom(), $recu->getNumero(), $montant, $devise->getSymbole(),
+            $contrat->getUnite()->getNom(), $lien, $recu->getEspace()->nomAffiche(),
+            rtrim($this->urlPublique, '/').'/confidentialite',
+        );
+    }
+
     public function espaceDe(Recu $recu): EspaceBailleur
     {
         return $recu->getEspace();

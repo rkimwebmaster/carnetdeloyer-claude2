@@ -6,6 +6,7 @@ use App\Api\Dto\Motif;
 use App\Api\ErreurMetier;
 use App\Api\Presentateur;
 use App\Entity\EspaceBailleur;
+use App\Entity\JournalAudit;
 use App\Entity\PaiementAbonnement;
 use App\Entity\User;
 use App\Enum\BadgeVerification;
@@ -138,6 +139,67 @@ final class AdminController extends ApiController
         return $this->json($this->p->espace($espace));
     }
 
+    /** R-110 : recherche de comptes par téléphone (exact) ou nom. */
+    #[Route('/utilisateurs', methods: ['GET'])]
+    public function utilisateurs(Request $request, \App\Securite\Chiffreur $chiffreur): JsonResponse
+    {
+        $q = trim((string) $request->query->get('q', ''));
+        $qb = $this->em->createQueryBuilder()->select('u')->from(User::class, 'u')->orderBy('u.createdAt', 'DESC');
+        if ('' !== $q) {
+            $tel = \App\Securite\Telephone::normaliser($q);
+            null !== $tel
+                ? $qb->where('u.telephoneEmpreinte = :e')->setParameter('e', $chiffreur->empreinte($tel))
+                : $qb->where('u.nom LIKE :n')->setParameter('n', '%'.addcslashes($q, '%_').'%');
+        }
+
+        return $this->page($request, $qb, fn (User $u) => [
+            'id' => $u->getId(), 'nom' => $u->getNom(), 'telephone' => $u->getTelephone(), 'actif' => $u->isActif(),
+            'roles' => $u->getRoles(), 'creeLe' => Presentateur::dateHeure($u->getCreatedAt()),
+            'wallet' => $this->isGranted('ROLE_SUPER_ADMIN') ? $this->wallet->solde($u) : null,
+        ]);
+    }
+
+    /** R-110 : suspension (réversible) d'un compte. */
+    #[Route('/utilisateurs/{id<\d+>}/suspension', methods: ['PUT'])]
+    public function suspendre(int $id, Request $request): JsonResponse
+    {
+        $user = $this->em->find(User::class, $id) ?? throw ErreurMetier::introuvable('Utilisateur');
+        $actif = !(bool) ($request->toArray()['suspendu'] ?? true);
+        $user->setActif($actif);
+        $this->em->flush();
+        $this->audit($actif ? 'compte_reactive' : 'compte_suspendu', ['user' => $id]);
+
+        return $this->json(['id' => $id, 'actif' => $actif]);
+    }
+
+    /** R-115 : journal d'audit. */
+    #[Route('/audit', methods: ['GET'])]
+    public function journal(Request $request): JsonResponse
+    {
+        $qb = $this->em->createQueryBuilder()->select('j')->from(JournalAudit::class, 'j')->orderBy('j.createdAt', 'DESC')->addOrderBy('j.id', 'DESC');
+
+        return $this->page($request, $qb, static fn (JournalAudit $j) => [
+            'id' => $j->getId(), 'admin' => $j->getAdmin()->getNom(), 'action' => $j->getAction(),
+            'contexte' => (object) $j->getContexte(), 'le' => Presentateur::dateHeure($j->getCreatedAt()),
+        ]);
+    }
+
+    /** R-114 : tableau de bord d'exploitation. */
+    #[Route('/tableau-de-bord', methods: ['GET'])]
+    public function tableauDeBord(\Psr\Clock\ClockInterface $clock): JsonResponse
+    {
+        $debutMois = $clock->now()->modify('first day of this month')->setTime(0, 0);
+        $scalaire = fn (string $dql, array $p = []) => (int) $this->em->createQuery($dql)->setParameters($p)->getSingleScalarResult();
+
+        return $this->json([
+            'comptesActifs' => $scalaire('SELECT COUNT(u.id) FROM App\Entity\User u WHERE u.actif = true'),
+            'unitesPayantes' => $scalaire("SELECT COUNT(u.id) FROM App\Entity\Unite u WHERE u.abonnementFin > CURRENT_DATE() AND (u.gratuiteJusquAu IS NULL OR u.gratuiteJusquAu < u.abonnementFin)"),
+            'chiffreAffairesMoisUsd' => $scalaire("SELECT COALESCE(SUM(p.montantUsd), 0) FROM App\Entity\PaiementAbonnement p WHERE p.statut = 'valide' AND p.createdAt >= :d", ['d' => $debutMois]),
+            'paiementsEnAttente' => $scalaire("SELECT COUNT(p.id) FROM App\Entity\PaiementAbonnement p WHERE p.statut = 'en_attente'"),
+            'renouvellements30Jours' => $scalaire('SELECT COUNT(u.id) FROM App\Entity\Unite u WHERE u.abonnementFin BETWEEN CURRENT_DATE() AND :f', ['f' => $clock->now()->modify('+30 days')]),
+        ]);
+    }
+
     /** R-116 : le support n'a accès ni aux paramètres ni au wallet. */
     private function superAdmin(): void
     {
@@ -149,6 +211,8 @@ final class AdminController extends ApiController
     /** @param array<string, scalar|null> $contexte */
     private function audit(string $action, array $contexte): void
     {
+        $this->em->persist(new JournalAudit($this->moi(), $action, $contexte));
+        $this->em->flush();
         $this->logger->notice('[AUDIT] {action} par {admin}', ['action' => $action, 'admin' => $this->moi()->getId()] + $contexte);
     }
 }

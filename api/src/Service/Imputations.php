@@ -93,6 +93,10 @@ final class Imputations
         $echeances = $this->echeancier->echeances($contrat);
         $tropPercu = 0;
         foreach ($paiements as $p) {
+            // L'état en mémoire fait foi (un paiement peut être annulé mais pas encore écrit).
+            if (!$p->isValide()) {
+                continue;
+            }
             if ($p->isImputationManuelle()) {
                 $dejaImpute = array_sum(array_map(static fn (Imputation $i) => $i->getMontant(), $this->actives(paiement: $p)));
                 $tropPercu += max(0, $p->getMontant() - $dejaImpute);

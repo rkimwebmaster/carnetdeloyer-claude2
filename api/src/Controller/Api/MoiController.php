@@ -69,6 +69,47 @@ final class MoiController extends ApiController
         return $this->json($this->p->utilisateur($moi, $this->espaces->de($moi)));
     }
 
+    /** R-123 : export des données de l'utilisateur (contrats, paiements, reçus). */
+    #[Route('/export', methods: ['GET'])]
+    public function export(): JsonResponse
+    {
+        $moi = $this->moi();
+        $espace = $this->espaces->de($moi);
+        $contratsBailleur = null === $espace ? [] : $this->em->createQueryBuilder()->select('c')->from(\App\Entity\Contrat::class, 'c')
+            ->join('c.unite', 'u')->join('u.propriete', 'p')->where('p.espace = :e')->setParameter('e', $espace)->getQuery()->getResult();
+        $contratsLocataire = $this->em->createQueryBuilder()->select('c')->from(\App\Entity\Contrat::class, 'c')
+            ->join('c.locataire', 'l')->where('l.utilisateur = :u')->setParameter('u', $moi)->getQuery()->getResult();
+        $detail = fn (\App\Entity\Contrat $c) => $this->p->contratDetail($c, $this->em->getRepository(\App\Entity\Paiement::class)->findBy(['contrat' => $c], ['datePaiement' => 'ASC']));
+
+        $reponse = $this->json([
+            'exporteLe' => Presentateur::dateHeure(new \DateTimeImmutable()),
+            'profil' => $this->p->utilisateur($moi, $espace),
+            'contratsBailleur' => array_map($detail, $contratsBailleur),
+            'contratsLocataire' => array_map($detail, $contratsLocataire),
+        ]);
+        $reponse->headers->set('Content-Disposition', 'attachment; filename="carnetdeloyer-export.json"');
+
+        return $reponse;
+    }
+
+    /**
+     * R-122 : suppression du compte. Données personnelles anonymisées ; contrats,
+     * paiements et reçus conservés (R-06).
+     */
+    #[Route('', methods: ['DELETE'])]
+    public function supprimer(): JsonResponse
+    {
+        $moi = $this->moi();
+        foreach ($this->em->getRepository(\App\Entity\Contact::class)->findBy(['utilisateur' => $moi]) as $contact) {
+            $contact->changerTelephone(null, null);
+        }
+        $moi->anonymiser();
+        $this->em->createQuery('DELETE FROM App\Entity\RefreshToken r WHERE r.username = :u')->setParameter('u', (string) $moi->getId())->execute();
+        $this->em->flush();
+
+        return $this->json(['supprime' => true]);
+    }
+
     /** R-164 : profil entreprise facultatif. */
     #[Route('/espace', methods: ['PATCH'])]
     public function modifierEspace(#[MapRequestPayload] ProfilEntreprise $dto): JsonResponse

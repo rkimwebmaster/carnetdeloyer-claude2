@@ -38,7 +38,15 @@ abstract class ApiTestCase extends WebTestCase
 
     protected function em(): EntityManagerInterface
     {
-        return static::getContainer()->get('doctrine')->getManager();
+        $doctrine = static::getContainer()->get('doctrine');
+        $em = $doctrine->getManager();
+        // Après une erreur métier levée dans une transaction, Doctrine ferme le
+        // gestionnaire de la requête : on en ouvre un neuf pour la suite du test.
+        if (!$em->isOpen()) {
+            $em = $doctrine->resetManager();
+        }
+
+        return $em;
     }
 
     protected function nouveauTelephone(string $indicatif = '+243'): string

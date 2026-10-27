@@ -111,6 +111,7 @@ final class Contrats
         }
 
         return $this->em->wrapInTransaction(function () use ($contrat, $par, $dateSortie, $montantDerniereEcheance, $reglementGarantie, $montantRetenu, $motifRetenue, $garantieDetenue): array {
+            $this->echeancier->verrouiller($contrat);
             $this->echeancier->generer($contrat);
             $derniere = null;
             foreach ($this->echeancier->echeances($contrat) as $e) {

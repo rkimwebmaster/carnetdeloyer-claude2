@@ -71,6 +71,7 @@ final class Paiements
      */
     public function creer(Contrat $contrat, User $saisiPar, int $montant, \DateTimeImmutable $datePaiement, MoyenPaiement $moyen, string $cle, ?string $reference, TypePaiement $type): Paiement
     {
+        $this->echeancier->verrouiller($contrat);
         if ($this->abonnements->estSuspendue($contrat->getUnite())) {
             // R-56 : plus de saisie de paiement ni d'émission de reçu.
             throw new ErreurMetier('UNITE_SUSPENDUE', 'Abonnement expiré : renouvelez-le pour enregistrer des paiements.', 403);
@@ -127,6 +128,7 @@ final class Paiements
         }
 
         $this->em->wrapInTransaction(function () use ($paiement, $par, $motif, $contrat): void {
+            $this->echeancier->verrouiller($contrat);
             $paiement->annuler($motif, $par);
             $this->recus->pour($paiement)?->annuler();
             if (TypePaiement::Garantie === $paiement->getType()) {

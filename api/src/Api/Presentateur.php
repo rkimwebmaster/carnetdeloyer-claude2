@@ -195,7 +195,14 @@ final class Presentateur
 
     public function recu(Recu $r): array
     {
-        return ['id' => $r->getId(), 'numero' => $r->getNumero(), 'annule' => $r->isAnnule(), 'emisLe' => self::dateHeure($r->getEmisLe()), 'lien' => $this->recus->lienPublic($r)];
+        $lien = $this->recus->lienPublic($r);
+
+        return [
+            'id' => $r->getId(), 'numero' => $r->getNumero(), 'annule' => $r->isAnnule(), 'emisLe' => self::dateHeure($r->getEmisLe()), 'lien' => $lien,
+            // R-74 : message prêt à envoyer par WhatsApp ou SMS depuis le téléphone du bailleur ;
+            // R-121 : il contient le lien vers la politique de confidentialité.
+            'messagePartage' => $this->recus->messagePartage($r, $lien),
+        ];
     }
 
     public function declaration(DeclarationPaiement $d): array
