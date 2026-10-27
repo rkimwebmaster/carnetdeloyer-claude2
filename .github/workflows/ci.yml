@@ -30,7 +30,7 @@ jobs:
       run:
         working-directory: api
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
@@ -42,13 +42,14 @@ jobs:
       - run: php bin/console lint:container && php bin/console lint:yaml config && php bin/console lint:twig templates
       - run: php bin/console doctrine:schema:validate --skip-sync
       - run: php vendor/bin/phpunit
-      - name: Migrations sur une base vide (dev) + concurrence
+      - name: Migrations sur une base vide (dev)
         run: |
           php bin/console lexik:jwt:generate-keypair --skip-if-exists
           php bin/console doctrine:migrations:migrate -n
           php bin/console doctrine:schema:validate
           php bin/console app:referentiels:charger
-          ./tests/Concurrence/encaissements-paralleles.sh
+      - name: Encaissements simultanés (concurrence)
+        run: ./tests/Concurrence/encaissements-paralleles.sh
 
   mobile:
     name: App Flutter (analyse, tests, APK)
@@ -57,7 +58,7 @@ jobs:
       run:
         working-directory: mobile
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.47.8'
@@ -93,7 +94,7 @@ jobs:
           --health-cmd="healthcheck.sh --connect --innodb_initialized"
           --health-interval=5s --health-timeout=5s --health-retries=20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'

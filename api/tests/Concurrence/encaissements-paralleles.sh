@@ -20,10 +20,12 @@ $em->persist($u); $em->flush();
 echo $c->get("lexik_jwt_authentication.jwt_manager")->create($u);
 ')
 
-PHP_CLI_SERVER_WORKERS=8 php -S 127.0.0.1:$PORT -t public >/dev/null 2>&1 &
+JOURNAL=$(mktemp)
+PHP_CLI_SERVER_WORKERS=8 php -S 127.0.0.1:$PORT -t public >"$JOURNAL" 2>&1 &
 SERVEUR=$!
-trap 'kill $SERVEUR' EXIT
-sleep 2
+# En cas d'échec, afficher le journal du serveur pour le diagnostic.
+trap 'code=$?; kill $SERVEUR 2>/dev/null; if [ $code -ne 0 ]; then echo "--- journal du serveur ---"; tail -50 "$JOURNAL"; fi' EXIT
+for _ in $(seq 1 30); do curl -s -o /dev/null "$URL/api/v1/referentiels/devises" && break; sleep 1; done
 
 H="Authorization: Bearer $TOKEN"; J="Content-Type: application/json"
 UNITE=$(curl -sf -H "$H" -H "$J" -d '{"nom":"Concurrence","type":"simple","paysId":1,"categorie":"maison"}' "$URL/api/v1/proprietes" | php -r 'echo json_decode(stream_get_contents(STDIN), true)["unites"][0]["id"];')
@@ -31,9 +33,10 @@ CONTRAT=$(curl -sf -H "$H" -H "$J" -d "{\"uniteId\":$UNITE,\"locataireNom\":\"Lo
 
 uuid() { php -r 'require "vendor/autoload.php"; echo Symfony\Component\Uid\Uuid::v4();'; }
 MEME=$(uuid)
-for _ in $(seq 1 20); do curl -s -o /dev/null -H "$H" -H "$J" -d "{\"montant\":1000,\"datePaiement\":\"$(date +%F)\",\"cleIdempotence\":\"$(uuid)\"}" "$URL/api/v1/contrats/$CONTRAT/paiements" & done
-for _ in $(seq 1 10); do curl -s -o /dev/null -H "$H" -H "$J" -d "{\"montant\":1000,\"datePaiement\":\"$(date +%F)\",\"cleIdempotence\":\"$MEME\"}" "$URL/api/v1/contrats/$CONTRAT/paiements" & done
+for _ in $(seq 1 20); do curl -s -o /dev/null -w "%{http_code} " -H "$H" -H "$J" -d "{\"montant\":1000,\"datePaiement\":\"$(date +%F)\",\"cleIdempotence\":\"$(uuid)\"}" "$URL/api/v1/contrats/$CONTRAT/paiements" & done
+for _ in $(seq 1 10); do curl -s -o /dev/null -w "%{http_code} " -H "$H" -H "$J" -d "{\"montant\":1000,\"datePaiement\":\"$(date +%F)\",\"cleIdempotence\":\"$MEME\"}" "$URL/api/v1/contrats/$CONTRAT/paiements" & done
 wait $(jobs -p | grep -v "^$SERVEUR$") 2>/dev/null || true
+echo
 sleep 1
 
 php -r '
