@@ -5,7 +5,7 @@ Ce dépôt contient la **v0.1 (Location)** de la spécification fonctionnelle v2
 
 | Dossier | Contenu |
 |---|---|
-| `api/` | API REST Symfony 7.4 (PHP 8.3, Doctrine, MySQL/MariaDB), sous `/api/v1` |
+| `api/` | API REST Symfony 7.4 (PHP 8.2, Doctrine, MySQL/MariaDB), sous `/api/v1` |
 | `mobile/` | Application Flutter (Android, iOS, Windows) : Riverpod, Dio, go_router, Drift |
 | `scripts/` | Test de bout en bout app ↔ API |
 | `.github/workflows/` | Intégration continue (bloquante, R-154) |
