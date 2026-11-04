@@ -3,7 +3,7 @@
 Ordre : 0. CI verte → 1. Auth → 2. Location → 3. Market → 4. Hôtels. Une exécution = une étape.
 
 ## 0. Prérequis
-- [x] CI verte en PHP 8.2 : test de concurrence fiabilisé (2026-11-04-22h50-ci-concurrence.md)
+- [ ] CI verte en PHP 8.2 : segfault du binaire PHP pendant la rafale, piste PHP-FPM (2026-11-04-22h50-ci-concurrence.md)
 
 ## 1. Auth
 - [ ] 1.1 Audit de l'existant auth (API + mobile) contre R-09, R-19, R-72, R-182 : liste des écarts

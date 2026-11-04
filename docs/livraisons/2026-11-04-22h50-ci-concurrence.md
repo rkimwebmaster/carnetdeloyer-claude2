@@ -9,22 +9,23 @@ Règles concernées : R-33 (reçus numérotés sans trou), R-137 (paiements idem
   Le serveur utilisé est le serveur PHP intégré (`php -S`, 8 workers), réservé aux tests.
 - Dans tous les échecs, l'intégrité était respectée : aucun doublon, reçus numérotés sans trou.
 
-## Correction
-- Le script renvoie la même requête, **avec la même clé d'idempotence**, si la connexion est coupée
-  (`curl --retry 5 --retry-all-errors`, sans `--fail` : une réponse HTTP d'erreur n'est jamais renvoyée).
-  C'est le comportement attendu du téléphone (R-137), et le test le vérifie désormais aussi.
-- Le contrôle final est inchangé : exactement 21 paiements, 21 000 imputés, reçus 1..21 distincts.
-- Diagnostic ajouté et conservé : codes de sortie curl, fin du journal du serveur, processus PHP,
-  erreurs PHP, requête de contrôle après la rafale.
+## Diagnostic (runs CI sur auto/developpement, PHP 8.2.35)
+- Le noyau montre un **segfault du binaire PHP** (`php8.2 segfault at 8`, deux adresses récurrentes)
+  pendant la rafale. Ce n'est pas une exception de l'application : le processus PHP meurt.
+- Observé avec le mode `PHP_CLI_SERVER_WORKERS=8` **et** avec 8 serveurs `php -S` indépendants,
+  avec ou sans préchauffage du cache. Échec aléatoire : 3 réussites, 4 échecs sur 7 runs.
+- Dans tous les cas, l'intégrité est respectée : aucun doublon, reçus numérotés sans trou (R-33, R-137).
 
-## Tests réellement exécutés (CI GitHub, PHP 8.2.35, MariaDB 10.11)
-- PHPUnit : 115 tests verts.
-- Concurrence : voir le run CI de ce commit (résultat noté dans AVANCEMENT.md).
-- Flutter (analyse, tests, APK) et test de bout en bout : verts sur `e6a20c5`.
+## Modifications conservées dans le script (sans affaiblir le contrôle final)
+- Diagnostic : codes curl, journal du serveur, processus PHP, erreurs PHP, messages du noyau.
+- Renvoi avec la même clé d'idempotence sur coupure réseau (comportement du téléphone, R-137).
+- 8 serveurs indépendants et cache préchauffé.
 
-## Point ouvert
-- Cause identifiée ensuite : segfault du binaire PHP en mode PHP_CLI_SERVER_WORKERS (noyau :
-  `php8.2 segfault at 8`, tous les processus du serveur). Remplacé par 8 serveurs `php -S` indépendants.
-  La production
-  (Apache/PHP-FPM) n'est pas concernée par ce serveur, mais un test de charge sur un serveur
-  proche de la production est recommandé avant le lancement (non exécuté).
+## Statut
+- **Étape 0 non terminée** : la CI reste rouge par intermittence.
+- PHPUnit (115 tests) et Flutter : verts en PHP 8.2.
+
+## Prochaine piste
+- Exécuter la rafale sur **PHP-FPM** (le mode de la production) au lieu du serveur de développement :
+  si FPM ne plante pas, le problème est limité au serveur de développement ; s'il plante aussi,
+  obtenir une pile d'appels (gdb) pour identifier l'extension ou le code en cause.
