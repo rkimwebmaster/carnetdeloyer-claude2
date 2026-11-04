@@ -41,10 +41,11 @@ CONTRAT=$(curl -sf -H "$H" -H "$J" -d "{\"uniteId\":$UNITE,\"locataireNom\":\"Lo
 uuid() { php -r 'require "vendor/autoload.php"; echo Symfony\Component\Uid\Uuid::v4();'; }
 MEME=$(uuid)
 CODES=$(mktemp)
-for _ in $(seq 1 20); do curl -s -o /dev/null -w "%{http_code} " -H "$H" -H "$J" -d "{\"montant\":1000,\"datePaiement\":\"$(date +%F)\",\"cleIdempotence\":\"$(uuid)\"}" "$URL/api/v1/contrats/$CONTRAT/paiements" >>"$CODES" & done
-for _ in $(seq 1 10); do curl -s -o /dev/null -w "%{http_code} " -H "$H" -H "$J" -d "{\"montant\":1000,\"datePaiement\":\"$(date +%F)\",\"cleIdempotence\":\"$MEME\"}" "$URL/api/v1/contrats/$CONTRAT/paiements" >>"$CODES" & done
+for _ in $(seq 1 20); do curl -s -o /dev/null -w "%{http_code}/%{exitcode} " -H "$H" -H "$J" -d "{\"montant\":1000,\"datePaiement\":\"$(date +%F)\",\"cleIdempotence\":\"$(uuid)\"}" "$URL/api/v1/contrats/$CONTRAT/paiements" >>"$CODES" & done
+for _ in $(seq 1 10); do curl -s -o /dev/null -w "%{http_code}/%{exitcode} " -H "$H" -H "$J" -d "{\"montant\":1000,\"datePaiement\":\"$(date +%F)\",\"cleIdempotence\":\"$MEME\"}" "$URL/api/v1/contrats/$CONTRAT/paiements" >>"$CODES" & done
 wait $(jobs -p | grep -v "^$SERVEUR$") 2>/dev/null || true
 cat "$CODES"; echo
+echo "--- journal du serveur (fin) ---"; tail -40 "$JOURNAL"; echo "--- fin du journal ---"
 [ -n "${GITHUB_ACTIONS:-}" ] && echo "::notice title=Codes HTTP::$(cat "$CODES")"
 sleep 1
 
