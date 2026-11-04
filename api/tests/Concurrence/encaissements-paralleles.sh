@@ -20,6 +20,9 @@ $em->persist($u); $em->flush();
 echo $c->get("lexik_jwt_authentication.jwt_manager")->create($u);
 ')
 
+# Cache préchauffé (conteneur et proxys Doctrine), comme en production : sinon chaque
+# serveur génère les mêmes fichiers de cache en même temps pendant la rafale.
+php bin/console cache:warmup -q
 JOURNAL=$(mktemp)
 # 8 serveurs PHP intégrés indépendants (un processus chacun) plutôt que le mode
 # PHP_CLI_SERVER_WORKERS : ce mode plante par intermittence sous rafale (segfault du
