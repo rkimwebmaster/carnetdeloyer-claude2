@@ -40,9 +40,14 @@ CONTRAT=$(curl -sf -H "$H" -H "$J" -d "{\"uniteId\":$UNITE,\"locataireNom\":\"Lo
 
 uuid() { php -r 'require "vendor/autoload.php"; echo Symfony\Component\Uid\Uuid::v4();'; }
 MEME=$(uuid)
+# Comme le téléphone (R-137), on renvoie la même requête, avec la même clé, si la
+# connexion est coupée (codes curl 52/56 observés par intermittence avec le serveur
+# PHP intégré, en 8.2 comme en 8.3). Sans --fail, une réponse HTTP d'erreur n'est
+# jamais renvoyée : seules les coupures réseau le sont. Le contrôle final reste strict.
+REESSAI="--retry 5 --retry-all-errors --retry-delay 1"
 CODES=$(mktemp)
-for _ in $(seq 1 20); do curl -s -o /dev/null -w "%{http_code}/%{exitcode} " -H "$H" -H "$J" -d "{\"montant\":1000,\"datePaiement\":\"$(date +%F)\",\"cleIdempotence\":\"$(uuid)\"}" "$URL/api/v1/contrats/$CONTRAT/paiements" >>"$CODES" & done
-for _ in $(seq 1 10); do curl -s -o /dev/null -w "%{http_code}/%{exitcode} " -H "$H" -H "$J" -d "{\"montant\":1000,\"datePaiement\":\"$(date +%F)\",\"cleIdempotence\":\"$MEME\"}" "$URL/api/v1/contrats/$CONTRAT/paiements" >>"$CODES" & done
+for _ in $(seq 1 20); do curl -s $REESSAI -o /dev/null -w "%{http_code}/%{exitcode} " -H "$H" -H "$J" -d "{\"montant\":1000,\"datePaiement\":\"$(date +%F)\",\"cleIdempotence\":\"$(uuid)\"}" "$URL/api/v1/contrats/$CONTRAT/paiements" >>"$CODES" & done
+for _ in $(seq 1 10); do curl -s $REESSAI -o /dev/null -w "%{http_code}/%{exitcode} " -H "$H" -H "$J" -d "{\"montant\":1000,\"datePaiement\":\"$(date +%F)\",\"cleIdempotence\":\"$MEME\"}" "$URL/api/v1/contrats/$CONTRAT/paiements" >>"$CODES" & done
 wait $(jobs -p | grep -v "^$SERVEUR$") 2>/dev/null || true
 cat "$CODES"; echo
 echo "--- journal du serveur (fin) ---"; tail -40 "$JOURNAL"; echo "--- fin du journal ---"
