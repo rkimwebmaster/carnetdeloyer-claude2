@@ -21,7 +21,7 @@ echo $c->get("lexik_jwt_authentication.jwt_manager")->create($u);
 ')
 
 JOURNAL=$(mktemp)
-PHP_CLI_SERVER_WORKERS=8 php -S 127.0.0.1:$PORT -t public >"$JOURNAL" 2>&1 &
+PHP_CLI_SERVER_WORKERS=8 php -d log_errors=On -d error_log=/tmp/cdl-php-erreurs.log -S 127.0.0.1:$PORT -t public >"$JOURNAL" 2>&1 &
 SERVEUR=$!
 # En cas d'échec, afficher le journal du serveur pour le diagnostic.
 diagnostic() {
@@ -46,6 +46,12 @@ for _ in $(seq 1 10); do curl -s -o /dev/null -w "%{http_code}/%{exitcode} " -H 
 wait $(jobs -p | grep -v "^$SERVEUR$") 2>/dev/null || true
 cat "$CODES"; echo
 echo "--- journal du serveur (fin) ---"; tail -40 "$JOURNAL"; echo "--- fin du journal ---"
+# Diagnostic PHP 8.2 : processus du serveur encore vivants, erreurs PHP, plantages noyau.
+php -v | head -1
+echo "--- processus php -S ---"; ps -eo pid,ppid,stat,etime,cmd | grep "[p]hp .*-S" || true
+echo "--- requête séquentielle après la rafale ---"; curl -sS -o /dev/null -w "%{http_code}/%{exitcode}\n" -H "$H" "$URL/api/v1/contrats/$CONTRAT" || true
+echo "--- erreurs PHP ---"; tail -40 /tmp/cdl-php-erreurs.log 2>/dev/null || echo "(aucune)"
+echo "--- noyau ---"; (sudo -n dmesg 2>/dev/null || dmesg 2>/dev/null) | grep -iE "segfault|php|killed" | tail -10 || true
 [ -n "${GITHUB_ACTIONS:-}" ] && echo "::notice title=Codes HTTP::$(cat "$CODES")"
 sleep 1
 
