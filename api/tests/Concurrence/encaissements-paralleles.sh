@@ -21,7 +21,7 @@ echo $c->get("lexik_jwt_authentication.jwt_manager")->create($u);
 ')
 
 JOURNAL=$(mktemp)
-PHP_CLI_SERVER_WORKERS=8 php -d log_errors=On -d error_log=/tmp/cdl-php-erreurs.log -S 127.0.0.1:$PORT -t public >"$JOURNAL" 2>&1 &
+PHP_CLI_SERVER_WORKERS=8 php -S 127.0.0.1:$PORT -t public >"$JOURNAL" 2>&1 &
 SERVEUR=$!
 # En cas d'échec, afficher le journal du serveur pour le diagnostic.
 diagnostic() {
