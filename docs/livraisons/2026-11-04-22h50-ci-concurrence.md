@@ -23,6 +23,8 @@ Règles concernées : R-33 (reçus numérotés sans trou), R-137 (paiements idem
 - Flutter (analyse, tests, APK) et test de bout en bout : verts sur `e6a20c5`.
 
 ## Point ouvert
-- La cause exacte des coupures n'est pas identifiée (serveur intégré sous rafale). La production
+- Cause identifiée ensuite : segfault du binaire PHP en mode PHP_CLI_SERVER_WORKERS (noyau :
+  `php8.2 segfault at 8`, tous les processus du serveur). Remplacé par 8 serveurs `php -S` indépendants.
+  La production
   (Apache/PHP-FPM) n'est pas concernée par ce serveur, mais un test de charge sur un serveur
   proche de la production est recommandé avant le lancement (non exécuté).

@@ -21,8 +21,16 @@ echo $c->get("lexik_jwt_authentication.jwt_manager")->create($u);
 ')
 
 JOURNAL=$(mktemp)
-PHP_CLI_SERVER_WORKERS=8 php -S 127.0.0.1:$PORT -t public >"$JOURNAL" 2>&1 &
-SERVEUR=$!
+# 8 serveurs PHP intégrés indépendants (un processus chacun) plutôt que le mode
+# PHP_CLI_SERVER_WORKERS : ce mode plante par intermittence sous rafale (segfault du
+# binaire PHP observé dans le noyau, en 8.2 comme en 8.3), sans lien avec l'application.
+NB_SERVEURS=8
+SERVEURS=""
+for i in $(seq 0 $((NB_SERVEURS - 1))); do
+  php -S 127.0.0.1:$((PORT + i)) -t public >>"$JOURNAL" 2>&1 &
+  SERVEURS="$SERVEURS $!"
+done
+url_n() { echo "http://127.0.0.1:$((PORT + $1 % NB_SERVEURS))"; }
 # En cas d'échec, afficher le journal du serveur pour le diagnostic.
 diagnostic() {
   echo "--- journal du serveur ---"; tail -50 "$JOURNAL"
@@ -31,8 +39,10 @@ diagnostic() {
     echo "::error title=Concurrence::$(tail -15 "$JOURNAL" | tr '\n' ' ' | cut -c1-1500)"
   fi
 }
-trap 'code=$?; kill $SERVEUR 2>/dev/null; if [ $code -ne 0 ]; then diagnostic; fi' EXIT
-for _ in $(seq 1 30); do curl -s -o /dev/null "$URL/api/v1/referentiels/devises" && break; sleep 1; done
+trap 'code=$?; kill $SERVEURS 2>/dev/null; if [ $code -ne 0 ]; then diagnostic; fi' EXIT
+for i in $(seq 0 $((NB_SERVEURS - 1))); do
+  for _ in $(seq 1 30); do curl -s -o /dev/null "$(url_n $i)/api/v1/referentiels/devises" && break; sleep 1; done
+done
 
 H="Authorization: Bearer $TOKEN"; J="Content-Type: application/json"
 UNITE=$(curl -sf -H "$H" -H "$J" -d '{"nom":"Concurrence","type":"simple","paysId":1,"categorie":"maison"}' "$URL/api/v1/proprietes" | php -r 'echo json_decode(stream_get_contents(STDIN), true)["unites"][0]["id"];')
@@ -46,9 +56,9 @@ MEME=$(uuid)
 # jamais renvoyée : seules les coupures réseau le sont. Le contrôle final reste strict.
 REESSAI="--retry 5 --retry-all-errors --retry-delay 1"
 CODES=$(mktemp)
-for _ in $(seq 1 20); do curl -s $REESSAI -o /dev/null -w "%{http_code}/%{exitcode} " -H "$H" -H "$J" -d "{\"montant\":1000,\"datePaiement\":\"$(date +%F)\",\"cleIdempotence\":\"$(uuid)\"}" "$URL/api/v1/contrats/$CONTRAT/paiements" >>"$CODES" & done
-for _ in $(seq 1 10); do curl -s $REESSAI -o /dev/null -w "%{http_code}/%{exitcode} " -H "$H" -H "$J" -d "{\"montant\":1000,\"datePaiement\":\"$(date +%F)\",\"cleIdempotence\":\"$MEME\"}" "$URL/api/v1/contrats/$CONTRAT/paiements" >>"$CODES" & done
-wait $(jobs -p | grep -v "^$SERVEUR$") 2>/dev/null || true
+for n in $(seq 1 20); do curl -s $REESSAI -o /dev/null -w "%{http_code}/%{exitcode} " -H "$H" -H "$J" -d "{\"montant\":1000,\"datePaiement\":\"$(date +%F)\",\"cleIdempotence\":\"$(uuid)\"}" "$(url_n $n)/api/v1/contrats/$CONTRAT/paiements" >>"$CODES" & done
+for n in $(seq 21 30); do curl -s $REESSAI -o /dev/null -w "%{http_code}/%{exitcode} " -H "$H" -H "$J" -d "{\"montant\":1000,\"datePaiement\":\"$(date +%F)\",\"cleIdempotence\":\"$MEME\"}" "$(url_n $n)/api/v1/contrats/$CONTRAT/paiements" >>"$CODES" & done
+for p in $(jobs -p); do case " $SERVEURS " in *" $p "*) ;; *) wait "$p" 2>/dev/null || true ;; esac; done
 cat "$CODES"; echo
 echo "--- journal du serveur (fin) ---"; tail -40 "$JOURNAL"; echo "--- fin du journal ---"
 # Diagnostic PHP 8.2 : processus du serveur encore vivants, erreurs PHP, plantages noyau.
