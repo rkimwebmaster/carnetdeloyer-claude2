@@ -24,16 +24,65 @@ echo $c->get("lexik_jwt_authentication.jwt_manager")->create($u);
 # serveur génère les mêmes fichiers de cache en même temps pendant la rafale.
 php bin/console cache:warmup -q
 JOURNAL=$(mktemp)
-# 8 serveurs PHP intégrés indépendants (un processus chacun) plutôt que le mode
-# PHP_CLI_SERVER_WORKERS : ce mode plante par intermittence sous rafale (segfault du
-# binaire PHP observé dans le noyau, en 8.2 comme en 8.3), sans lien avec l'application.
 NB_SERVEURS=8
 SERVEURS=""
-for i in $(seq 0 $((NB_SERVEURS - 1))); do
-  php -S 127.0.0.1:$((PORT + i)) -t public >>"$JOURNAL" 2>&1 &
+# Serveur : PHP-FPM derrière nginx (comme en production) si disponibles, sinon serveur
+# PHP intégré. Le mode PHP_CLI_SERVER_WORKERS et les serveurs « php -S » plantent par
+# intermittence sous rafale (segfault du binaire PHP observé dans le noyau, 8.2 et 8.3).
+FPM=$(command -v php-fpm8.2 || command -v php-fpm || true)
+if [ "${SERVEUR_CONCURRENCE:-auto}" != "php-s" ] && [ -n "$FPM" ] && command -v nginx >/dev/null; then
+  MODE=fpm
+  T=$(mktemp -d)
+  RACINE=$(pwd)/public
+  SCAN=$(php --ini | sed -n 's/^Scan for additional .ini files in: *//p')
+  INI=$(php -r 'echo php_ini_loaded_file() ?: "";')
+  cat >"$T/fpm.conf" <<CONF
+[global]
+error_log = $T/fpm.log
+daemonize = no
+[cdl]
+listen = 127.0.0.1:$((PORT + 1000))
+pm = static
+pm.max_children = $NB_SERVEURS
+clear_env = no
+catch_workers_output = yes
+CONF
+  cat >"$T/nginx.conf" <<CONF
+daemon off;
+pid $T/nginx.pid;
+error_log $T/nginx.log;
+events { worker_connections 256; }
+http {
+  access_log $T/acces.log;
+  client_body_temp_path $T/corps; proxy_temp_path $T/proxy; fastcgi_temp_path $T/fcgi;
+  uwsgi_temp_path $T/uwsgi; scgi_temp_path $T/scgi;
+  server {
+    listen 127.0.0.1:$PORT;
+    root $RACINE;
+    location / { try_files \$uri /index.php\$is_args\$args; }
+    location ~ ^/index\.php(/|\$) {
+      fastcgi_pass 127.0.0.1:$((PORT + 1000));
+      include /etc/nginx/fastcgi_params;
+      fastcgi_param SCRIPT_FILENAME $RACINE/index.php;
+      fastcgi_param DOCUMENT_ROOT $RACINE;
+    }
+  }
+}
+CONF
+  PHP_INI_SCAN_DIR="$SCAN" "$FPM" ${INI:+-c "$INI"} -y "$T/fpm.conf" >>"$JOURNAL" 2>&1 &
+  SERVEURS="$!"
+  nginx -c "$T/nginx.conf" >>"$JOURNAL" 2>&1 &
   SERVEURS="$SERVEURS $!"
-done
-url_n() { echo "http://127.0.0.1:$((PORT + $1 % NB_SERVEURS))"; }
+  url_n() { echo "$URL"; }
+else
+  MODE=php-s
+  for i in $(seq 0 $((NB_SERVEURS - 1))); do
+    php -S 127.0.0.1:$((PORT + i)) -t public >>"$JOURNAL" 2>&1 &
+    SERVEURS="$SERVEURS $!"
+  done
+  url_n() { echo "http://127.0.0.1:$((PORT + $1 % NB_SERVEURS))"; }
+fi
+echo "Serveur de test : $MODE"
 # En cas d'échec, afficher le journal du serveur pour le diagnostic.
 diagnostic() {
   echo "--- journal du serveur ---"; tail -50 "$JOURNAL"
@@ -66,8 +115,9 @@ cat "$CODES"; echo
 echo "--- journal du serveur (fin) ---"; tail -40 "$JOURNAL"; echo "--- fin du journal ---"
 # Diagnostic PHP 8.2 : processus du serveur encore vivants, erreurs PHP, plantages noyau.
 php -v | head -1
-echo "--- processus php -S ---"; ps -eo pid,ppid,stat,etime,cmd | grep "[p]hp .*-S" || true
+echo "--- processus php -S ---"; ps -eo pid,ppid,stat,etime,cmd | grep -E "[p]hp(-fpm)?|[n]ginx" || true
 echo "--- requête séquentielle après la rafale ---"; curl -sS -o /dev/null -w "%{http_code}/%{exitcode}\n" -H "$H" "$URL/api/v1/contrats/$CONTRAT" || true
+if [ "$MODE" = fpm ]; then echo "--- fpm ---"; tail -20 "$T/fpm.log"; echo "--- nginx ---"; tail -20 "$T/nginx.log"; fi
 echo "--- erreurs PHP ---"; tail -40 /tmp/cdl-php-erreurs.log 2>/dev/null || echo "(aucune)"
 echo "--- noyau ---"; (sudo -n dmesg 2>/dev/null || dmesg 2>/dev/null) | grep -iE "segfault|php|killed" | tail -10 || true
 [ -n "${GITHUB_ACTIONS:-}" ] && echo "::notice title=Codes HTTP::$(cat "$CODES")"
