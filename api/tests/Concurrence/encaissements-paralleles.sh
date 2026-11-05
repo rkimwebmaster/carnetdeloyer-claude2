@@ -46,6 +46,7 @@ pm = static
 pm.max_children = $NB_SERVEURS
 clear_env = no
 catch_workers_output = yes
+rlimit_core = unlimited
 CONF
   cat >"$T/nginx.conf" <<CONF
 daemon off;
@@ -69,6 +70,12 @@ http {
   }
 }
 CONF
+  # Diagnostic sur GitHub Actions : vidages mémoire en cas de plantage, analysés par gdb.
+  if [ -n "${GITHUB_ACTIONS:-}" ] && sudo -n true 2>/dev/null; then
+    sudo apt-get install -y -q gdb >/dev/null 2>&1 || true
+    sudo sysctl -q -w kernel.core_pattern=/tmp/core.%e.%p || true
+    ulimit -c unlimited || true
+  fi
   PHP_INI_SCAN_DIR="$SCAN" "$FPM" ${INI:+-c "$INI"} -y "$T/fpm.conf" >>"$JOURNAL" 2>&1 &
   SERVEURS="$!"
   nginx -c "$T/nginx.conf" >>"$JOURNAL" 2>&1 &
@@ -118,6 +125,12 @@ php -v | head -1
 echo "--- processus php -S ---"; ps -eo pid,ppid,stat,etime,cmd | grep -E "[p]hp(-fpm)?|[n]ginx" || true
 echo "--- requête séquentielle après la rafale ---"; curl -sS -o /dev/null -w "%{http_code}/%{exitcode}\n" -H "$H" "$URL/api/v1/contrats/$CONTRAT" || true
 if [ "$MODE" = fpm ]; then echo "--- fpm ---"; tail -20 "$T/fpm.log"; echo "--- nginx ---"; tail -20 "$T/nginx.log"; fi
+if command -v gdb >/dev/null; then
+  for c in $(ls /tmp/core.* 2>/dev/null | head -2); do
+    echo "--- pile d'appels ($c) ---"
+    sudo -n gdb -q -batch -ex "bt 40" "$FPM" "$c" 2>&1 | grep -E "^#" | head -40 || true
+  done
+fi
 echo "--- erreurs PHP ---"; tail -40 /tmp/cdl-php-erreurs.log 2>/dev/null || echo "(aucune)"
 echo "--- noyau ---"; (sudo -n dmesg 2>/dev/null || dmesg 2>/dev/null) | grep -iE "segfault|php|killed" | tail -10 || true
 [ -n "${GITHUB_ACTIONS:-}" ] && echo "::notice title=Codes HTTP::$(cat "$CODES")"
