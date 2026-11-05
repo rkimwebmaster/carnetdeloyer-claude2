@@ -3,7 +3,8 @@
 Ordre : 0. CI verte → 1. Auth → 2. Location → 3. Market → 4. Hôtels. Une exécution = une étape.
 
 ## 0. Prérequis
-- [ ] CI verte en PHP 8.2 : segfault du binaire PHP pendant la rafale, piste PHP-FPM (2026-11-04-22h50-ci-concurrence.md)
+- [x] CI verte en PHP 8.2 : plantages causés par le JIT d'OPcache, désactivé (2026-11-04-22h50-ci-concurrence.md,
+  décision docs/decisions/2026-11-05-jit-opcache-php82.md). CI 26331f6 : 3 jobs verts, 2 exécutions sur 2.
 
 ## 1. Auth
 - [ ] 1.1 Audit de l'existant auth (API + mobile) contre R-09, R-19, R-72, R-182 : liste des écarts
@@ -21,4 +22,4 @@ Ordre : 0. CI verte → 1. Auth → 2. Location → 3. Market → 4. Hôtels. Un
 - [ ] à découper au démarrage de la feature
 
 ## Questions pour le propriétaire
-- (aucune pour l'instant)
+- Production : confirmer que `opcache.jit` est désactivé sur le serveur PHP 8.2 (voir la décision du 5 novembre).
