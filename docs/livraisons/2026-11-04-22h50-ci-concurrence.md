@@ -21,11 +21,13 @@ Règles concernées : R-33 (reçus numérotés sans trou), R-137 (paiements idem
 - Renvoi avec la même clé d'idempotence sur coupure réseau (comportement du téléphone, R-137).
 - 8 serveurs indépendants et cache préchauffé.
 
-## Statut
-- **Étape 0 non terminée** : la CI reste rouge par intermittence.
-- PHPUnit (115 tests) et Flutter : verts en PHP 8.2.
+## Cause trouvée (5 novembre)
+- Pile d'appels gdb des plantages : `zend_check_user_type_slow` appelé depuis `opcache.so`,
+  c'est-à-dire le **JIT d'OPcache** (`opcache.jit=1235`, activé par la CI).
+- PHP-FPM + nginx (mode production) plante aussi ; le test de bout en bout aussi, sans concurrence.
+- JIT désactivé, OPcache actif : aucun plantage. Décision : `docs/decisions/2026-11-05-jit-opcache-php82.md`.
 
-## Prochaine piste
-- Exécuter la rafale sur **PHP-FPM** (le mode de la production) au lieu du serveur de développement :
-  si FPM ne plante pas, le problème est limité au serveur de développement ; s'il plante aussi,
-  obtenir une pile d'appels (gdb) pour identifier l'extension ou le code en cause.
+## Statut
+- **Étape 0 terminée** : test de concurrence sous PHP-FPM + nginx, JIT désactivé ; test de bout
+  en bout avec JIT désactivé. Résultats des runs dans AVANCEMENT.md.
+- **Action pour la production** : vérifier que `opcache.jit` est désactivé sur le serveur PHP 8.2.

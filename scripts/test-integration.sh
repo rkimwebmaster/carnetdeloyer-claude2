@@ -30,7 +30,8 @@ foreach (["Bailleur intégration", "Locataire intégration"] as $i => $nom) {
 echo $sortie[0], " ", $sortie[1], " ", $dernierTel, "\n";
 ')
 
-APP_ENV=test php -d variables_order=EGPCS -S 127.0.0.1:$PORT -t public >/tmp/cdl-integration.log 2>&1 &
+# JIT d'OPcache désactivé : il fait planter PHP 8.2 (docs/decisions/2026-11-05-jit-opcache-php82.md).
+APP_ENV=test php -d variables_order=EGPCS -d opcache.jit=${OPCACHE_JIT:-disable} -S 127.0.0.1:$PORT -t public >/tmp/cdl-integration.log 2>&1 &
 SERVEUR=$!
 trap 'kill $SERVEUR 2>/dev/null' EXIT
 sleep 2

@@ -85,7 +85,7 @@ CONF
 else
   MODE=php-s
   for i in $(seq 0 $((NB_SERVEURS - 1))); do
-    php -S 127.0.0.1:$((PORT + i)) -t public >>"$JOURNAL" 2>&1 &
+    php -d opcache.jit=${OPCACHE_JIT:-disable} -S 127.0.0.1:$((PORT + i)) -t public >>"$JOURNAL" 2>&1 &
     SERVEURS="$SERVEURS $!"
   done
   url_n() { echo "http://127.0.0.1:$((PORT + $1 % NB_SERVEURS))"; }
