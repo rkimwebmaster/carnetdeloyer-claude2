@@ -47,6 +47,7 @@ pm.max_children = $NB_SERVEURS
 clear_env = no
 catch_workers_output = yes
 rlimit_core = unlimited
+php_admin_value[opcache.jit] = ${OPCACHE_JIT:-disable}
 CONF
   cat >"$T/nginx.conf" <<CONF
 daemon off;
@@ -89,7 +90,7 @@ else
   done
   url_n() { echo "http://127.0.0.1:$((PORT + $1 % NB_SERVEURS))"; }
 fi
-echo "Serveur de test : $MODE"
+echo "Serveur de test : $MODE, opcache.jit=${OPCACHE_JIT:-disable} (ini : $(php -r 'echo ini_get("opcache.jit"), " / buffer ", ini_get("opcache.jit_buffer_size");'))"
 # En cas d'échec, afficher le journal du serveur pour le diagnostic.
 diagnostic() {
   echo "--- journal du serveur ---"; tail -50 "$JOURNAL"
