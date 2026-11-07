@@ -77,19 +77,21 @@ class _LigneFile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l = context.l10n;
     final rejete = paiement.etat == 'rejete';
-    return Card(
-      color: rejete ? Theme.of(context).colorScheme.errorContainer : null,
-      child: ListTile(
-        leading: Icon(rejete ? Icons.error_outline : Icons.schedule, color: rejete ? ThemeCdl.retard : ThemeCdl.attente),
-        title: Text('${Format.montant(paiement.montant, paiement.devise)} · ${paiement.libelle}'),
-        subtitle: Text(rejete ? l.paiementsRejete(paiement.motifRejet ?? '') : l.recuProvisoire),
-        trailing: IconButton(
-          tooltip: l.actionSupprimer,
-          icon: const Icon(Icons.delete_outline),
-          onPressed: () => ref.read(filePaiementsProvider).supprimer(paiement.id),
-        ),
+    final ligne = ListTile(
+      leading: rejete
+          ? Icon(Icons.error_outline, color: CouleursStatut.de(context).couleur(Tonalite.erreur))
+          : const Icon(Icons.schedule),
+      title: Text('${Format.montant(paiement.montant, paiement.devise)} · ${paiement.libelle}'),
+      subtitle: Text(rejete ? l.paiementsRejete(paiement.motifRejet ?? '') : l.recuProvisoire),
+      trailing: IconButton(
+        tooltip: l.actionSupprimer,
+        icon: const Icon(Icons.delete_outline),
+        onPressed: () => ref.read(filePaiementsProvider).supprimer(paiement.id),
       ),
     );
+    // Charte, section 1 : reçu provisoire en texte secondaire, bordure pointillée.
+    if (!rejete) return CadreProvisoire(key: const Key('recuProvisoire'), child: ligne);
+    return Card(color: Theme.of(context).colorScheme.errorContainer, child: ligne);
   }
 }
 

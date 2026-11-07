@@ -128,7 +128,9 @@ class _Entete extends StatelessWidget {
           else
             Text(
               enRetard ? l.contratEnRetard(Format.montantDevise(c.enRetard, c.devise)) : l.contratAJour,
-              style: TextStyle(color: enRetard ? ThemeCdl.retard : ThemeCdl.ok, fontWeight: FontWeight.w600),
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                color: CouleursStatut.de(context).texte(enRetard ? Tonalite.erreur : Tonalite.succes),
+              ),
             ),
           if (c.prochaineEcheance != null) Text(l.contratProchaineEcheance(Format.date(c.prochaineEcheance!.dateExigible))),
         ]),

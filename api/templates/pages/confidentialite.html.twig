@@ -5,10 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Confidentialité · CarnetDeLoyer</title>
     <style>
-        body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #1d2433; background: #f5f6f8; line-height: 1.55; }
+        /* Charte graphique v1.0 (docs/design/charte-graphique.md) : mêmes couleurs que l'app. */
+        :root { --encre: #1F1F1F; --fond: #F8F8F8; --primaire: #8B0000; --avertissement: #F9A825; }
+        body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--encre); background: var(--fond); line-height: 1.55; }
         main { max-width: 680px; margin: 24px auto; padding: 0 16px 32px; }
         h1 { font-size: 1.4rem; } h2 { font-size: 1.05rem; margin-top: 1.6em; }
-        .note { background: #fff7e6; border: 1px solid #f3d38b; padding: 10px 14px; border-radius: 8px; }
+        h1 { color: var(--primaire); }
+        .note { background: rgba(249, 168, 37, .12); border: 1px solid var(--avertissement); padding: 10px 14px; border-radius: 8px; }
     </style>
 </head>
 <body>

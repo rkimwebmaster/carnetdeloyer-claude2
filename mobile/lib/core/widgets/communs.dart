@@ -60,13 +60,38 @@ class EtatVide extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(32),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Icon(icone, size: 48, color: Theme.of(context).colorScheme.outline),
+            Icon(icone, size: 48, color: Theme.of(context).colorScheme.onSurfaceVariant),
             const SizedBox(height: 12),
             Text(message, textAlign: TextAlign.center),
             if (action != null) ...[const SizedBox(height: 16), action!],
           ]),
         ),
       );
+}
+
+/// Pastille de statut (charte, section 1) : fond à 12 %, texte de la tonalité,
+/// toujours avec un libellé (la couleur ne porte jamais l'information seule).
+class Pastille extends StatelessWidget {
+  const Pastille({super.key, required this.libelle, required this.tonalite});
+
+  final String libelle;
+  final Tonalite tonalite;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = CouleursStatut.de(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: DimensionsCdl.espaceS, vertical: 2),
+      decoration: BoxDecoration(
+        color: c.fondPastille(tonalite),
+        borderRadius: BorderRadius.circular(DimensionsCdl.radiusMedium),
+      ),
+      child: Text(
+        libelle,
+        style: Theme.of(context).textTheme.labelMedium?.copyWith(color: c.textePastille(tonalite)),
+      ),
+    );
+  }
 }
 
 /// Pastille de statut d'échéance (R-22).
@@ -85,13 +110,64 @@ class PastilleStatut extends StatelessWidget {
       'annulee' => l.statutAnnulee,
       _ => l.statutA_venir,
     };
-    final couleur = ThemeCdl.statut(statut, Theme.of(context).colorScheme);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(color: couleur.withValues(alpha: .12), borderRadius: BorderRadius.circular(12)),
-      child: Text(libelle, style: TextStyle(color: couleur, fontWeight: FontWeight.w600, fontSize: 12)),
+    return Pastille(libelle: libelle, tonalite: CouleursStatut.tonaliteEcheance(statut));
+  }
+}
+
+/// Reçu provisoire hors ligne (R-81, R-136) : texte secondaire et bordure pointillée
+/// (charte, section 1), pour ne jamais le confondre avec un reçu émis.
+class CadreProvisoire extends StatelessWidget {
+  const CadreProvisoire({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final schema = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: DimensionsCdl.margeEcran, vertical: DimensionsCdl.espaceCartes / 2),
+      child: CustomPaint(
+        foregroundPainter: _Pointilles(schema.onSurfaceVariant),
+        child: Material(
+          color: schema.surface,
+          shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(DimensionsCdl.radiusMedium))),
+          clipBehavior: Clip.antiAlias,
+          child: ListTileTheme.merge(
+            textColor: schema.onSurfaceVariant,
+            iconColor: schema.onSurfaceVariant,
+            child: DefaultTextStyle.merge(style: TextStyle(color: schema.onSurfaceVariant), child: child),
+          ),
+        ),
+      ),
     );
   }
+}
+
+class _Pointilles extends CustomPainter {
+  _Pointilles(this.couleur);
+
+  final Color couleur;
+
+  @override
+  void paint(Canvas canvas, Size taille) {
+    final pinceau = Paint()
+      ..color = couleur
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
+    final contour = Path()
+      ..addRRect(RRect.fromRectAndRadius(
+        (Offset.zero & taille).deflate(.75),
+        const Radius.circular(DimensionsCdl.radiusMedium),
+      ));
+    for (final m in contour.computeMetrics()) {
+      for (double d = 0; d < m.length; d += 9) {
+        canvas.drawPath(m.extractPath(d, d + 5), pinceau);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_Pointilles ancien) => ancien.couleur != couleur;
 }
 
 /// Icône d'une catégorie d'unité (R-83). Les noms viennent du back-office.
@@ -125,16 +201,23 @@ class BandeauHorsLigne extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (!horsLigne) return const SizedBox.shrink();
+    // Fond avertissement, texte #1F1F1F (8,4:1) dans les deux modes.
+    final c = CouleursStatut.de(context);
     return Material(
-      color: Theme.of(context).colorScheme.tertiaryContainer,
+      color: c.avertissement,
       child: SafeArea(
         bottom: false,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: DimensionsCdl.margeEcran, vertical: 6),
           child: Row(children: [
-            const Icon(Icons.wifi_off, size: 18),
-            const SizedBox(width: 8),
-            Expanded(child: Text(context.l10n.horsLigne, style: Theme.of(context).textTheme.bodySmall)),
+            Icon(Icons.wifi_off, size: 18, color: c.texteSurAvertissement),
+            const SizedBox(width: DimensionsCdl.espaceS),
+            Expanded(
+              child: Text(
+                context.l10n.horsLigne,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(color: c.texteSurAvertissement),
+              ),
+            ),
           ]),
         ),
       ),

@@ -88,6 +88,8 @@ void main() {
     await h.monter(tester, const EcranPaiements());
     expect(find.text('En attente de synchronisation'), findsOneWidget);
     expect(find.textContaining('REÇU PROVISOIRE'), findsOneWidget);
+    // Charte, section 1 : le reçu provisoire est encadré en pointillés, jamais confondu avec un reçu émis.
+    expect(find.byKey(const Key('recuProvisoire')), findsOneWidget);
     await h.terminer(tester);
   });
 

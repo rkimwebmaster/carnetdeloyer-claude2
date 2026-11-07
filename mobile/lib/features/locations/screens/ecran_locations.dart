@@ -68,7 +68,9 @@ class EcranLocations extends ConsumerWidget {
                           : c.enRetard > 0
                               ? l.contratEnRetard(Format.montantDevise(c.enRetard, c.devise))
                               : l.contratAJour),
-                      trailing: c.enRetard > 0 ? const Icon(Icons.warning_amber, color: ThemeCdl.retard) : const Icon(Icons.chevron_right),
+                      trailing: c.enRetard > 0
+                          ? Icon(Icons.warning_amber, color: CouleursStatut.de(context).couleur(Tonalite.erreur))
+                          : const Icon(Icons.chevron_right),
                       onTap: () => context.push('/l/locations/${c.id}'),
                     ),
                   ),

@@ -92,10 +92,16 @@ class _CarteAbonnement extends ConsumerWidget {
             contentPadding: EdgeInsets.zero,
             leading: Icon(iconeCategorie(unite.categorie.icone)),
             title: Text(unite.nom),
-            subtitle: Text([
-              libelleEtat(l, etat),
-              if (unite.abonnement.fin != null) l.abonnementJusquAu(Format.date(unite.abonnement.fin!)),
-            ].join(' · '), style: TextStyle(color: alerte ? ThemeCdl.retard : null)),
+            // R-55, R-56 : période de grâce et suspension en pastille (charte, section 1).
+            subtitle: alerte
+                ? Wrap(spacing: DimensionsCdl.espaceS, crossAxisAlignment: WrapCrossAlignment.center, children: [
+                    Pastille(libelle: libelleEtat(l, etat), tonalite: CouleursStatut.tonaliteAbonnement(etat)),
+                    if (unite.abonnement.fin != null) Text(l.abonnementJusquAu(Format.date(unite.abonnement.fin!))),
+                  ])
+                : Text([
+                    libelleEtat(l, etat),
+                    if (unite.abonnement.fin != null) l.abonnementJusquAu(Format.date(unite.abonnement.fin!)),
+                  ].join(' · ')),
           ),
           if (devis != null) ...[
             Text(l.abonnementMontant(Format.montant(devis['montantUsd'] as int, 'USD'), '${devis['pourcentage']}')),

@@ -56,7 +56,7 @@ flutter run --dart-define=CDL_API_URL=http://192.168.1.10:8000   # téléphone r
 |---|---|
 | `cd api && php vendor/bin/phpunit` | 115 tests : unitaires (argent en entiers, calendrier, chiffrement, filtre de coordonnées) et fonctionnels sur base réelle (chaque test isolé en transaction) |
 | `cd api && ./tests/Concurrence/encaissements-paralleles.sh` | 30 encaissements simultanés : aucun montant perdu, reçus sans trou ni doublon, idempotence |
-| `cd mobile && flutter test` | 34 tests : client HTTP et rafraîchissement du token, file de paiements hors ligne, PIN, redirections, écrans (inscription, verrou, bascule de mode, encaissement) |
+| `cd mobile && flutter test` | 63 tests : client HTTP et rafraîchissement du token, file de paiements hors ligne, PIN, redirections, écrans (inscription, verrou, bascule de mode, encaissement), thème conforme à la charte graphique (couleurs, contrastes, mode sombre) |
 | `./scripts/test-integration.sh` | les services Flutter contre l'API réelle (parcours bailleur et locataire) |
 
 ## Ce qui est livré (v0.1)
